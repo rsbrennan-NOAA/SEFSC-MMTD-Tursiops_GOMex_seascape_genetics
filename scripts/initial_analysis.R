@@ -15,17 +15,31 @@ dat_depth_dist <- read.csv("analysis/environmental_variables/depth_distance.csv"
 dat_lcdist <- read.csv("analysis/environmental_variables/lc_distances_km.csv")
 dat_temp_mean <- read.csv("analysis/environmental_variables/weekly_mean_temp.csv")
 dat_temp_anom <- read.csv("analysis/environmental_variables/weekly_anomaly_temp.csv")
+dat_temp_annual <- read.csv("analysis/environmental_variables/annual_mean_temp.csv")
+dat_salinity_annual <- read.csv("analysis/environmental_variables/annual_mean_salinity.csv")
+dat_oxygen_annual <- read.csv("analysis/environmental_variables/annual_mean_oxygen.csv")
+dat_nitrate_annual <- read.csv("analysis/environmental_variables/annual_mean_nitrate.csv")
+dat_phosphate_annual <- read.csv("analysis/environmental_variables/annual_mean_phosphate.csv")
 
-head(dat_depth_dist)
-head(dat_lcdist)
-head(dat_temp_mean)
-head(dat_temp_anom)
+
 
 # merge into single df
 dat <- (cbind(cbind(dat_depth_dist, dat_temp_mean$weekly_mean_temp), dat_temp_anom$anom_temp_mean))
 colnames(dat) <- c("id", "depth", "distance_to_shore", "weekly_mean_temp", "anom_temp")
 # are there differences between the genetic pops for env factors?
   # some boxplots here.
+
+dat <- cbind(
+  dat_depth_dist[, c("id", "depth", "distance_to_shore")],
+  weekly_mean_temp = dat_temp_mean[, 5],
+  anom_temp = dat_temp_anom[, 5],
+  annual_mean_temp = dat_temp_annual[, 5],
+  annual_mean_salinity = dat_salinity_annual[, 5],
+  annual_mean_oxygen = dat_oxygen_annual[, 5],
+  annual_mean_nitrate = dat_nitrate_annual[, 5],
+  annual_mean_phosphate = dat_phosphate_annual[, 5],
+  lc_dist_km = dat_lcdist[, 5]
+)
 
 pops <- read.csv("population_assignments.csv")
 
@@ -36,14 +50,16 @@ all <- merge(dat, pops, by.x="id", by.y="indiv")
 boxplot(all$depth ~ all$newpop)
 boxplot(all$distance_to_shore  ~ all$newpop)
 boxplot(all$weekly_mean_temp   ~ all$newpop)
-boxplot(all$anom_temp    ~ all$newpop)
+boxplot(all$annual_mean_oxygen     ~ all$newpop)
+boxplot(all$annual_mean_salinity     ~ all$newpop)
+boxplot(all$annual_mean_temp    ~ all$newpop)
+boxplot(all$annual_mean_phosphate     ~ all$newpop)
 
 
-cors <- raster::layerStats(envlayers, stat = "pearson", na.rm = TRUE)
-cors <- cors$`pearson correlation coefficient`
-cor_df <- cor_df_helper(cors, threshold)
-return(list(cor_df = cor_df, cor_matrix = cors))
-}
+
+
+# check below here--
+
 
 # nj tree. 
 library(ape)
@@ -73,11 +89,10 @@ dm <- left_join(out, all, by=c("label" ="id"))
 
 ggtree(out_tree) + 
   theme_tree()
-  geom_point(size=3, data=all, aes(color=newpop))
 
-  
-p <- ggtree(out_tree,layout="daylight") + theme_tree()
-  
+#p <- ggtree(out_tree,layout="daylight") + theme_tree()
+p <- ggtree(out_tree) + theme_tree()
+
   
 pout <- p %<+% dm + 
     #geom_tiplab(aes(color=newpop), size=0.9) +
@@ -86,9 +101,6 @@ pout <- p %<+% dm +
     geom_tippoint(aes(color=newpop), size=4, alpha=0.7) 
 
 ggsave(pout, filename="figures/nj_tree.png", h=5, w=6)
-
-
-# check if there is seasonality to the collections
 
 
 # make correlation plot
