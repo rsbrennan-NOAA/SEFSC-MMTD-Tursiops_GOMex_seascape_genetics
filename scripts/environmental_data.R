@@ -465,9 +465,340 @@ points(missingdat[,3:4], pch=19, lwd=1, col="red")
 
 # all seems good
 # write the tmp output
-write.csv(dfout, file="analysis/environmental_variables/annual_mean_temp.csv", 
+write.csv(dfout, file="analysis/environmental_variables/annual_mean_salinity.csv", 
           quote=F, row.names=F)
 
+
+
+
+
+
+
+
+
+# ------------------------------
+# oxygen
+# ------------------------------
+
+# read in data, get overlaps:
+
+clim <- rast("analysis/environmental_variables/annual_mean_oxygen/gom_all_o00_01.nc")
+plot(clim)
+
+location <- read.csv("data/GoMx_Tursiops_Snicro_FarFromShore-NoStranding.csv")
+
+coords<-data.frame(lon=location$long, lat=location$lat)
+
+head(coords)
+plot(clim[[1]])
+points(coords, pch=16)
+
+# need to loop over the coords, find the cooresponding temp
+
+# adjust the date formats
+location$date_correct <- as.Date(location$collection.date, "%m/%d/%Y")
+
+#make df to store output:
+dfout <- as.data.frame(matrix(ncol=5, nrow=nrow(coords)))
+colnames(dfout) <- c("id", "lon", "lat", "sample_date", "annual_mean_temp")
+dfout$id <- location$Sample
+dfout$lon <- location$long
+dfout$lat <- location$lat
+dfout$sample_date <-location$date_correct
+
+for(i in 1:nrow(dfout)){
+  val<-terra::extract(x=clim[[1]], y=coords[i,])
+  dfout$annual_mean_temp[i] <- val[1,2]
+}
+
+# need to fix the above for those with NA
+## first plot and zoom in the make sure there is no data for these grids:
+missing_index <- which(is.na(dfout$annual_mean_temp))
+length(missing_index)
+missingdat <- data.frame(lon = coords$lon[missing_index],
+                         lat = coords$lat[missing_index])
+
+climplt <- clim[[1]]
+plot(clim[[1]], xlim=c(-83,-82), ylim=c(26.5,27.5))
+plot(clim[[1]])
+points(missingdat, pch=21, lwd=2, col="red")
+
+# yes, definitely falling outside of a raster. 
+# find the 2nd closest raster- they're very close, just outside.
+missingdat$lon_new <- NA
+missingdat$lat_new <- NA
+
+for(i in 1:length(missing_index)){
+  
+  # first, convert to SpatVector, then do the extraction
+  sample_vect <- vect(missingdat[i,1:2], geom = c("lon", "lat"),
+                      crs="EPSG:4326")
+  clim_wgs84 <- project(clim[[1]], "EPSG:4326")
+  sample_ext <- distance(x=clim_wgs84, y=sample_vect)
+  df_ext <- values(sample_ext)
+  
+  # returns distance in meters
+  head(df_ext)
+
+  minrast_index <- match(sort(df_ext[,1], decreasing=FALSE)[2], df_ext[,1])
+  # get these coordinates:
+  close_coords <- as.data.frame(t((crds(sample_ext)[minrast_index,])))
+  close_coords_vect <- vect(close_coords, geom=c("x", "y"), 
+                            crs="EPSG:4326") 
+  val<-terra::extract(x=clim_wgs84, y=close_coords_vect)
+  
+  # if na still, fix
+  j <- 3  # Start with the second closest point
+  # some move to another empty cell. if this happens, go to 2nd match
+  while(is.na(val[1,2])) {
+    minrast_index <- match(sort(df_ext[,1], decreasing=FALSE)[j], df_ext[,1])
+    # get these coordinates:
+    close_coords <- as.data.frame(t((crds(sample_ext)[minrast_index,])))
+    close_coords_vect <- vect(close_coords, geom=c("x", "y"), 
+                              crs="EPSG:4326") 
+    val<-terra::extract(x=clim_wgs84, y=close_coords_vect)
+    #  counter if we need to try next point
+    if(is.na(val[1,2])) {
+      j <- j + 1
+    }
+    
+  }
+  dfout$annual_mean_temp[missing_index[i]] <- val[1,2]
+  
+  # save the new lon lat
+  missingdat$lon_new[i] <- close_coords$x
+  missingdat$lat_new[i] <- close_coords$y
+}
+
+# plot each, to make sure there are no mistakes
+plot(clim[[1]])
+points(missingdat, pch=19, lwd=1)
+points(missingdat[,3:4], pch=19, lwd=1, col="red")
+
+# all seems good
+# write the tmp output
+write.csv(dfout, file="analysis/environmental_variables/annual_mean_oxygen.csv", 
+          quote=F, row.names=F)
+
+
+
+
+
+
+
+
+
+# ------------------------------
+# annual_mean_nitrate 
+# ------------------------------
+
+# read in data, get overlaps:
+
+clim <- rast("analysis/environmental_variables/annual_mean_nitrate/gom_all_n00_01.nc")
+plot(clim)
+
+location <- read.csv("data/GoMx_Tursiops_Snicro_FarFromShore-NoStranding.csv")
+
+coords<-data.frame(lon=location$long, lat=location$lat)
+
+head(coords)
+plot(clim[[1]])
+points(coords, pch=16)
+
+# need to loop over the coords, find the cooresponding temp
+
+# adjust the date formats
+location$date_correct <- as.Date(location$collection.date, "%m/%d/%Y")
+
+#make df to store output:
+dfout <- as.data.frame(matrix(ncol=5, nrow=nrow(coords)))
+colnames(dfout) <- c("id", "lon", "lat", "sample_date", "annual_mean_temp")
+dfout$id <- location$Sample
+dfout$lon <- location$long
+dfout$lat <- location$lat
+dfout$sample_date <-location$date_correct
+
+for(i in 1:nrow(dfout)){
+  val<-terra::extract(x=clim[[1]], y=coords[i,])
+  dfout$annual_mean_temp[i] <- val[1,2]
+}
+
+# need to fix the above for those with NA
+## first plot and zoom in the make sure there is no data for these grids:
+missing_index <- which(is.na(dfout$annual_mean_temp))
+length(missing_index)
+missingdat <- data.frame(lon = coords$lon[missing_index],
+                         lat = coords$lat[missing_index])
+
+climplt <- clim[[1]]
+plot(clim[[1]], xlim=c(-83,-82), ylim=c(26.5,27.5))
+plot(clim[[1]])
+points(missingdat, pch=21, lwd=2, col="red")
+
+# yes, definitely falling outside of a raster. 
+# find the 2nd closest raster- they're very close, just outside.
+missingdat$lon_new <- NA
+missingdat$lat_new <- NA
+
+for(i in 1:length(missing_index)){
+  
+  # first, convert to SpatVector, then do the extraction
+  sample_vect <- vect(missingdat[i,1:2], geom = c("lon", "lat"),
+                      crs="EPSG:4326")
+  clim_wgs84 <- project(clim[[1]], "EPSG:4326")
+  sample_ext <- distance(x=clim_wgs84, y=sample_vect)
+  df_ext <- values(sample_ext)
+  
+  # returns distance in meters
+  head(df_ext)
+  
+  minrast_index <- match(sort(df_ext[,1], decreasing=FALSE)[2], df_ext[,1])
+  # get these coordinates:
+  close_coords <- as.data.frame(t((crds(sample_ext)[minrast_index,])))
+  close_coords_vect <- vect(close_coords, geom=c("x", "y"), 
+                            crs="EPSG:4326") 
+  val<-terra::extract(x=clim_wgs84, y=close_coords_vect)
+  
+  # if na still, fix
+  j <- 3  # Start with the second closest point
+  # some move to another empty cell. if this happens, go to 2nd match
+  while(is.na(val[1,2])) {
+    minrast_index <- match(sort(df_ext[,1], decreasing=FALSE)[j], df_ext[,1])
+    # get these coordinates:
+    close_coords <- as.data.frame(t((crds(sample_ext)[minrast_index,])))
+    close_coords_vect <- vect(close_coords, geom=c("x", "y"), 
+                              crs="EPSG:4326") 
+    val<-terra::extract(x=clim_wgs84, y=close_coords_vect)
+    #  counter if we need to try next point
+    if(is.na(val[1,2])) {
+      j <- j + 1
+    }
+    
+  }
+  dfout$annual_mean_temp[missing_index[i]] <- val[1,2]
+  
+  # save the new lon lat
+  missingdat$lon_new[i] <- close_coords$x
+  missingdat$lat_new[i] <- close_coords$y
+}
+
+# plot each, to make sure there are no mistakes
+plot(clim[[1]])
+points(missingdat, pch=19, lwd=1)
+points(missingdat[,3:4], pch=19, lwd=1, col="red")
+
+# all seems good
+# write the tmp output
+write.csv(dfout, file="analysis/environmental_variables/annual_mean_nitrate.csv", 
+          quote=F, row.names=F)
+
+
+
+
+
+# ------------------------------
+# annual_mean_phosphate 
+# ------------------------------
+
+# read in data, get overlaps:
+
+clim <- rast("analysis/environmental_variables/annual_mean_phosphate/gom_all_p00_01.nc")
+plot(clim)
+
+location <- read.csv("data/GoMx_Tursiops_Snicro_FarFromShore-NoStranding.csv")
+
+coords<-data.frame(lon=location$long, lat=location$lat)
+
+head(coords)
+plot(clim[[1]])
+points(coords, pch=16)
+
+# need to loop over the coords, find the cooresponding temp
+
+# adjust the date formats
+location$date_correct <- as.Date(location$collection.date, "%m/%d/%Y")
+
+#make df to store output:
+dfout <- as.data.frame(matrix(ncol=5, nrow=nrow(coords)))
+colnames(dfout) <- c("id", "lon", "lat", "sample_date", "annual_mean_temp")
+dfout$id <- location$Sample
+dfout$lon <- location$long
+dfout$lat <- location$lat
+dfout$sample_date <-location$date_correct
+
+for(i in 1:nrow(dfout)){
+  val<-terra::extract(x=clim[[1]], y=coords[i,])
+  dfout$annual_mean_temp[i] <- val[1,2]
+}
+
+# need to fix the above for those with NA
+## first plot and zoom in the make sure there is no data for these grids:
+missing_index <- which(is.na(dfout$annual_mean_temp))
+length(missing_index)
+missingdat <- data.frame(lon = coords$lon[missing_index],
+                         lat = coords$lat[missing_index])
+
+climplt <- clim[[1]]
+plot(clim[[1]], xlim=c(-83,-82), ylim=c(26.5,27.5))
+plot(clim[[1]])
+points(missingdat, pch=21, lwd=2, col="red")
+
+# yes, definitely falling outside of a raster. 
+# find the 2nd closest raster- they're very close, just outside.
+missingdat$lon_new <- NA
+missingdat$lat_new <- NA
+
+for(i in 1:length(missing_index)){
+  
+  # first, convert to SpatVector, then do the extraction
+  sample_vect <- vect(missingdat[i,1:2], geom = c("lon", "lat"),
+                      crs="EPSG:4326")
+  clim_wgs84 <- project(clim[[1]], "EPSG:4326")
+  sample_ext <- distance(x=clim_wgs84, y=sample_vect)
+  df_ext <- values(sample_ext)
+  
+  # returns distance in meters
+  head(df_ext)
+  
+  minrast_index <- match(sort(df_ext[,1], decreasing=FALSE)[2], df_ext[,1])
+  # get these coordinates:
+  close_coords <- as.data.frame(t((crds(sample_ext)[minrast_index,])))
+  close_coords_vect <- vect(close_coords, geom=c("x", "y"), 
+                            crs="EPSG:4326") 
+  val<-terra::extract(x=clim_wgs84, y=close_coords_vect)
+  
+  # if na still, fix
+  j <- 3  # Start with the second closest point
+  # some move to another empty cell. if this happens, go to 2nd match
+  while(is.na(val[1,2])) {
+    minrast_index <- match(sort(df_ext[,1], decreasing=FALSE)[j], df_ext[,1])
+    # get these coordinates:
+    close_coords <- as.data.frame(t((crds(sample_ext)[minrast_index,])))
+    close_coords_vect <- vect(close_coords, geom=c("x", "y"), 
+                              crs="EPSG:4326") 
+    val<-terra::extract(x=clim_wgs84, y=close_coords_vect)
+    #  counter if we need to try next point
+    if(is.na(val[1,2])) {
+      j <- j + 1
+    }
+    
+  }
+  dfout$annual_mean_temp[missing_index[i]] <- val[1,2]
+  
+  # save the new lon lat
+  missingdat$lon_new[i] <- close_coords$x
+  missingdat$lat_new[i] <- close_coords$y
+}
+
+# plot each, to make sure there are no mistakes
+plot(clim[[1]])
+points(missingdat, pch=19, lwd=1)
+points(missingdat[,3:4], pch=19, lwd=1, col="red")
+
+# all seems good
+# write the tmp output
+write.csv(dfout, file="analysis/environmental_variables/annual_mean_phosphate.csv", 
+          quote=F, row.names=F)
 
 
 
