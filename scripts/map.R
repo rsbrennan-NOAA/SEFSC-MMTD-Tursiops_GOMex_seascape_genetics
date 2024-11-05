@@ -6,6 +6,8 @@ library(rnaturalearth)
 library(rnaturalearthdata)
 library(tidyverse)
 library(ggspatial)
+library(marmap)
+
 
 
 # Get the world map data
@@ -45,8 +47,6 @@ p
 ggsave("figures/map.pdf", p, h=4, w=5)
 ggsave("figures/map.png", p, h=4, w=5)
 
-
-library(marmap)
 
 #--------------#
 #
@@ -134,7 +134,6 @@ write.csv(dfout, file="analysis/environmental_variables/depth_distance.csv",
 #-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------
 
-# I thought I did this... 
 # min depth 1 stops them from crossing land
 # these are slow to run, especially lc.dist
 trans1 <- trans.mat(bathydata, min.depth = -1, max.depth = NULL)
@@ -144,6 +143,8 @@ lc_dist <- lc.dist(trans1, coords.gps, res = "dist")
 save(lc_paths, file = "least_cost_paths.RData")
 save(lc_dist, file = "least_cost_paths_dist.RData")
 
+load("least_cost_paths.RData")
+load("least_cost_paths_dist.RData")
 
 plot.bathy(bathydata, image= TRUE, land = TRUE, n = 0,
            bpal = list(c(0, max(bathydata), "grey"),

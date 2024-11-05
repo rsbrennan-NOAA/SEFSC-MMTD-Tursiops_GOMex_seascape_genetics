@@ -4,7 +4,7 @@
 #-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------
 
-
+library(algatr)
 # https://thewanglab.github.io/algatr/articles/MMRR_vignette.html
 # https://thewanglab.github.io/algatr/articles/enviro_data_vignette.html
 # check for collinearity
@@ -12,7 +12,6 @@
 # read in all env. data
 
 dat_depth_dist <- read.csv("analysis/environmental_variables/depth_distance.csv") 
-dat_lcdist <- read.csv("analysis/environmental_variables/lc_distances_km.csv")
 dat_temp_mean <- read.csv("analysis/environmental_variables/weekly_mean_temp.csv")
 dat_temp_anom <- read.csv("analysis/environmental_variables/weekly_anomaly_temp.csv")
 dat_temp_annual <- read.csv("analysis/environmental_variables/annual_mean_temp.csv")
@@ -20,6 +19,9 @@ dat_salinity_annual <- read.csv("analysis/environmental_variables/annual_mean_sa
 dat_oxygen_annual <- read.csv("analysis/environmental_variables/annual_mean_oxygen.csv")
 dat_nitrate_annual <- read.csv("analysis/environmental_variables/annual_mean_nitrate.csv")
 dat_phosphate_annual <- read.csv("analysis/environmental_variables/annual_mean_phosphate.csv")
+
+# pairwise distance between samples. 
+dat_lcdist <- read.csv("analysis/environmental_variables/lc_distances_km.csv", row.names=1)
 
 
 
@@ -37,8 +39,7 @@ dat <- cbind(
   annual_mean_salinity = dat_salinity_annual[, 5],
   annual_mean_oxygen = dat_oxygen_annual[, 5],
   annual_mean_nitrate = dat_nitrate_annual[, 5],
-  annual_mean_phosphate = dat_phosphate_annual[, 5],
-  lc_dist_km = dat_lcdist[, 5]
+  annual_mean_phosphate = dat_phosphate_annual[, 5]
 )
 
 pops <- read.csv("population_assignments.csv")
@@ -56,11 +57,93 @@ boxplot(all$annual_mean_temp    ~ all$newpop)
 boxplot(all$annual_mean_phosphate     ~ all$newpop)
 
 
+#--------------------------------------------------------------------------------
+# process environmental data
+
+# make correlation plot to check for collinearity
+# Calculate correlation matrix
+corr_matrix <- cor(dat[2:ncol(dat)], method = "pearson")
+
+library(corrplot)
+corrplot.mixed(corr_matrix,
+         upper = "ellipse",  # Ellipses on upper triangle
+         lower = "number",   # Numbers on lower triangle
+         tl.col = "black",   # Text label color
+         tl.cex = 0.7,       # Text label size
+         number.cex = 0.7)   # Number size
+
+corrplot(corr_matrix,
+         method='ellipse',
+              type = 'lower', diag = TRUE,   
+               tl.col = "black",   # Text label color
+               tl.cex = 0.7,       # Text label size
+               number.cex = 0.7)   # Number size
+corrplot(corr_matrix,
+         method='number',
+         type = 'lower', diag = TRUE,   
+         tl.col = "black",   # Text label color
+         tl.cex = 0.7,       # Text label size
+         number.cex = 0.7)   # Number size
+
+# drop correlated env. variables
+# phosphate and nitrate 0.82. 
+# salinity and temp (annual) are 0.71, borderline. keep for now.
+
+# drop phosphate:
+library(dplyr)
+dat <- dat %>% select(-annual_mean_phosphate)
+ 
+
+#--------------------------------------------------------------------------
+# calculate environmental distances
+# A list with one matrix for each parameter
+numeric_cols <- names(dat)[sapply(dat, is.numeric)]
+numeric_cols <- numeric_cols[numeric_cols != "id"]
+
+# Initialize empty list
+distmat <- list()
+
+# Create distance matrix for each numeric column
+for(col in numeric_cols) {
+  # Create distance matrix
+  dist_tmp <- as.matrix(dist(dat[[col]], diag = TRUE, upper = TRUE))
+  
+  # Add row and column names
+  row.names(dist_tmp) <- dat$id
+  colnames(dist_tmp) <- dat$id
+  
+  # Add to list
+  distmat[[col]] <- dist_tmp
+}
+
+# collinearity between geographic and environmental distances:
+
+library(viridis)
+# Make a fun heat map with the pairwise distances
+geo_dist <- as.data.frame(dat_lcdist)
+colnames(geo_dist) <- rownames(geo_dist)
 
 
-# check below here--
+geo_dist %>%
+  rownames_to_column("sample") %>%
+  gather("sample_comp", "dist", -"sample") %>%
+  ggplot(aes(x = (sample), y = (sample_comp), fill = dist)) +
+  geom_tile() +
+  coord_equal() +
+  scale_fill_viridis() +
+  xlab("Sample") +
+  ylab("Sample")
 
 
+
+
+
+
+
+
+
+
+#-----------------------------------------------------------------
 # nj tree. 
 library(ape)
 library(Matrix)
@@ -73,9 +156,9 @@ gendist2 <- as.matrix(Matrix::forceSymmetric(gendist,uplo="L"))
 all$newpop <- as.factor(all$newpop)
 
 Colorsdf <-
-    with(all,
-         data.frame(population = levels(all$newpop),
-                    color = I(brewer.pal(nlevels(newpop), name = 'Dark2'))))
+  with(all,
+       data.frame(population = levels(all$newpop),
+                  color = I(brewer.pal(nlevels(newpop), name = 'Dark2'))))
 cols <- Colorsdf$color[match(all$newpop, Colorsdf$population)]
 
 nj(gendist2) %>% plot(.,"unrooted", tip.color = cols)
@@ -93,39 +176,19 @@ ggtree(out_tree) +
 #p <- ggtree(out_tree,layout="daylight") + theme_tree()
 p <- ggtree(out_tree) + theme_tree()
 
-  
+
 pout <- p %<+% dm + 
-    #geom_tiplab(aes(color=newpop), size=0.9) +
-    theme(legend.position="right")+ 
-    #geom_text( show.legend  = F ) +
-    geom_tippoint(aes(color=newpop), size=4, alpha=0.7) 
+  #geom_tiplab(aes(color=newpop), size=0.9) +
+  theme(legend.position="right")+ 
+  #geom_text( show.legend  = F ) +
+  geom_tippoint(aes(color=newpop), size=4, alpha=0.7) 
 
 ggsave(pout, filename="figures/nj_tree.png", h=5, w=6)
 
 
-# make correlation plot
 
 
-# drop correlated env. variables
 
-
-# calculate environmental distances
-# make matrix of geographic distances + environmental distances
-# a little unclear exactly what format the env. distances should be. 
-# A list with one matrix for each parameter, I think. but double check.
-env <- dat_depth_dist$depth 
-distmat <- as.matrix(dist(env, diag = TRUE, upper = TRUE))
-row.names(distmat) <-dat_depth_dist$id
-colnames(distmat)<-dat_depth_dist$id
-distmat <- list(distmat)
-names(distmat) <- c("depth")
-
-env <- dat_depth_dist$distance_to_shore 
-distmat_tmp <- as.matrix(dist(env, diag = TRUE, upper = TRUE))
-row.names(distmat_tmp) <-dat_depth_dist$id
-colnames(distmat_tmp)<-dat_depth_dist$id
-distmat[[2]] <- distmat_tmp
-names(distmat) <- c("depth", "distance_From_shore")
 
 # genetic distances matrix needs to be symmetrical
 gendist2 <- as.matrix(Matrix::forceSymmetric(gendist,uplo="L"))
