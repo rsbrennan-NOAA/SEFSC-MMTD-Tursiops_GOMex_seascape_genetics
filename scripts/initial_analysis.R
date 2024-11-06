@@ -78,12 +78,15 @@ corrplot(corr_matrix,
                tl.col = "black",   # Text label color
                tl.cex = 0.7,       # Text label size
                number.cex = 0.7)   # Number size
+
+png("figures/correlation_plot.png", width=600, height=600, res=120)
 corrplot(corr_matrix,
          method='number',
          type = 'lower', diag = TRUE,   
          tl.col = "black",   # Text label color
          tl.cex = 0.7,       # Text label size
          number.cex = 0.7)   # Number size
+dev.off()
 
 # drop correlated env. variables
 # phosphate and nitrate 0.82. 
@@ -116,6 +119,10 @@ for(col in numeric_cols) {
   distmat[[col]] <- dist_tmp
 }
 
+
+# add geographic distance:
+distmat[['geographic_dist']] <- as.matrix(geo_dist)
+
 # collinearity between geographic and environmental distances:
 
 library(viridis)
@@ -144,7 +151,8 @@ geo_dist %>%
 
 
 #-----------------------------------------------------------------
-# nj tree. 
+# nj tree. genetic distances
+#-----------------------------------------------------------------
 library(ape)
 library(Matrix)
 library(tidyverse)
@@ -174,7 +182,8 @@ ggtree(out_tree) +
   theme_tree()
 
 #p <- ggtree(out_tree,layout="daylight") + theme_tree()
-p <- ggtree(out_tree) + theme_tree()
+p <- ggtree(out_tree, layout="unrooted") + theme_tree()
+p <- ggtree(out_tree, layout="ape") + theme_tree()
 
 
 pout <- p %<+% dm + 
@@ -183,33 +192,104 @@ pout <- p %<+% dm +
   #geom_text( show.legend  = F ) +
   geom_tippoint(aes(color=newpop), size=4, alpha=0.7) 
 
-ggsave(pout, filename="figures/nj_tree.png", h=5, w=6)
+ggsave(pout, filename="figures/nj_tree_unrooted.png", h=5, w=6)
 
 
 
-
+#-----------------------------------------------------------------
+# prep genetic distances for gea
+#-----------------------------------------------------------------
 
 
 # genetic distances matrix needs to be symmetrical
 gendist2 <- as.matrix(Matrix::forceSymmetric(gendist,uplo="L"))
 
+#-----------------------------------------------------------------
+# mmr: multiple matrix regression: 
+#-----------------------------------------------------------------
+#https://thewanglab.github.io/algatr/articles/MMRR_vignette.html
+# disentangling the contribution of geographic and environment
+
+# significance found via randomization permutaions
+# get ndividual regression coefficients and p-values for each dependent variable and a 
+  # “coefficient ratio,” which is the ratio between regression coefficients, 
+   # which thus provides an idea of the relative contributions of IBD and IBE in explaining variation in the genetic distances in your data.
+
+# assumptions:
+    # (1) the coordinates and genetic distance files MUST have the same ordering of individuals;
+    # (2) this function assumes that each individual has its own sampling coordinates (even if population-based sampling was performed).
+
+set.seed(01)
 results_full <- mmrr_run(gendist2, distmat, nperm = 99, stdz = TRUE, model = "full")
+# The results from running the “full” MMRR model contains four elements:
+  # 1. coeff_df: a dataframe with statistics relating to each variable’s distance related to genetic distance, including coefficient values for each environmental variable and geographic distance
+  # 2 mod: a dataframe containing statistics for the results of the model, including an R^2 value, and F statistics
+  # 3/4: X and Y: the input data
 
-mmrr_plot(gendist2, distmat, mod = results_full$mod, plot_type = "vars", stdz = TRUE)
-mmrr_plot(gendist2, distmat, mod = results_full$mod, plot_type = "fitted", stdz = TRUE)
-mmrr_plot(gendist2, distmat, mod = results_full$mod, plot_type = "cov", stdz = TRUE)
-mmrr_table(results_full, digits = 2, summary_stats = TRUE)
+#results_full
 
-######
+table_full <- mmrr_table(results_full, digits = 2, summary_stats = TRUE)
+gt::gtsave(table_full, filename = "figures/mmrr_full_results_table.png")   # Save as PNG
+
+
+# Single variable plot
+variables_full <- mmrr_plot(gendist2, distmat, mod = results_full$mod, plot_type = "vars", stdz = TRUE)
+ggsave(filename="figures/mmrr_variables_full.png", h=7, w=7)
+
+# Fitted variable plot
+fitted_full <- mmrr_plot(gendist2, distmat, mod = results_full$mod, plot_type = "fitted", stdz = TRUE)
+ggsave(filename="figures/mmrr_fitted_full.png", h=7, w=7)
+
+# covariance plot
+covariance_full <- mmrr_plot(gendist2, distmat, mod = results_full$mod, plot_type = "cov", stdz = TRUE)
+ggsave(filename="figures/mmrr_covariance_full.png", h=7, w=7)
+
+
+#### best model only #######
+# Run MMRR with all variables and select best model
+set.seed(01)
+results_best <- mmrr_run(gendist2, distmat, nperm = 99, stdz = TRUE, model = "best")
+
+table_best <- mmrr_table(results_best, digits = 2, summary_stats = TRUE)
+gt::gtsave(table_best, filename = "figures/mmrr_best_results_table.png")   # Save as PNG
+
+
+
+
+mmrr_plot(gendist2, distmat, mod = results_best$mod, plot_type = "all", stdz = TRUE)
+
+
+
+
+
+
+
+
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
 # gdm
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+# Generalized dissimilarity modeling (GDM) is a matrix regression method in which 
+# explanatory variables (in our case, genetic data, in the form of a distance matrix) 
+# is regressed against a response matrix (e.g., environmental variables for locations 
+# from which samples were obtained and geographic distances between those locations).
+# GDM calculates the compositional dissimilarity between pairs of sites, 
+# and importantly allows for nonlinear relationships to be modeled.
 
+
+# assumptions:
+  # (1) the coords and gendist files must have the same ordering of individuals; 
+  # (2) each individual has its own sampling coordinates
 location <- read.csv("data/GoMx_Tursiops_Snicro_FarFromShore-NoStranding.csv")
 
 coords<-data.frame(lon=location$long, lat=location$lat)
-envs <- dat_depth_dist[,2:3]
+envs <- dat[,2:ncol(dat)]
 
 gdm_full <- gdm_run(
-  gendist = gendist2,
+  gendist = gendist,
   coords = coords,
   env = envs,
   model = "full",
@@ -225,21 +305,42 @@ gdm_plot_isplines(gdm_full$model, scales = "free")
 # Plot the I-splines with a free x-axis and a fixed y-axis
 # This allows for visualization of relative importance (i.e., the height of the I-splines)
 gdm_plot_isplines(gdm_full$model, scales = "free_x")
+gdm_table(gdm_full)
 
-gdm_best <- gdm_run(gendist = gendist2, 
+# calculate variable importance and significance:
+# To run gdm.varImp() you need a gdmData object, which you can create using gdm_format()
+gdmData <- gdm_format(gendist, coords, envs, scale_gendist = TRUE)
+
+# Then you can run gdm.varImp(), 
+# specifying whether you want to use geographic distance as a variable as well 
+varimp <- gdm::gdm.varImp(gdmData,
+                          predSelect = FALSE ,
+                          geo = TRUE, nPerm = 50,parallel=TRUE, cores = 9)
+
+# visualize the results 
+gdm_varimp_table(varimp)
+
+# depth by far the most important. then annual mean temp, 
+    # then annual mean nitrate, then dist to shore. then annual mean oxygen
+
+# I think some of these are confounded, so depth and distance to shore and temp maybe?
+
+# make a map, but I need a raster to do this. doesn't work currenty. 
+map <- gdm_map(gdm_full$model, envs, coords)
+
+
+gdm_best <- gdm_run(gendist = gendist, 
                     coords = coords, 
                     env = envs, 
                     model = "best", 
                     scale_gendist = TRUE,
-                    nperm = 1000, 
+                    nperm = 10, # should be 1000, just 10 to run quickly to see if working
                     sig = 0.05)
-
 
 # Look at p-values
 gdm_best$pvalues
 gdm_best$varimp
 
-summary(gdm_full$model)
 
 
-gdm_table(gdm_full)
+
