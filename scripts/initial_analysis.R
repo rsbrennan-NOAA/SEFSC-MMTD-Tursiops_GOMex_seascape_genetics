@@ -42,20 +42,117 @@ dat <- cbind(
   annual_mean_phosphate = dat_phosphate_annual[, 5]
 )
 
-pops <- read.csv("population_assignments.csv")
+#pops <- read.csv("population_assignments.csv")
+pops <- read.csv("data/GoMx_Tursiops_Snicro_FarFromShore-NoStranding.csv")
 
 head(dat)
 
-all <- merge(dat, pops, by.x="id", by.y="indiv")
+all <- merge(dat, pops[,c('Sample','Pop')], by.x="id", by.y="Sample")
 
-boxplot(all$depth ~ all$newpop)
-boxplot(all$distance_to_shore  ~ all$newpop)
-boxplot(all$weekly_mean_temp   ~ all$newpop)
-boxplot(all$annual_mean_oxygen     ~ all$newpop)
-boxplot(all$annual_mean_salinity     ~ all$newpop)
-boxplot(all$annual_mean_temp    ~ all$newpop)
-boxplot(all$annual_mean_phosphate     ~ all$newpop)
+popColors <- read.csv("analysis/popColors.csv")
 
+boxplot(all$depth ~ all$Pop, col=popColors$color)
+boxplot(all$distance_to_shore  ~ all$Pop)
+boxplot(all$weekly_mean_temp   ~ all$Pop)
+boxplot(all$annual_mean_oxygen     ~ all$Pop)
+boxplot(all$annual_mean_salinity     ~ all$Pop)
+boxplot(all$annual_mean_temp    ~ all$Pop)
+boxplot(all$annual_mean_phosphate     ~ all$Pop)
+
+
+long_data <- all %>%
+  select(Pop, 2:10) %>%  # Select columns 5 through 10
+  pivot_longer(cols = -Pop,
+               names_to = "variable",
+               values_to = "value")
+
+new_order <- c("NWInner", "EInner", "EOuter", "ShelfOff", "NEOFF", "DeepOff", "EastOff")
+ordered_colors <- popColors$color[match(new_order, popColors$population)]  
+
+ggplot(long_data, aes(x = factor(Pop, levels = new_order), 
+                y = value, 
+                fill = factor(Pop, levels = new_order))) +
+  facet_wrap(~variable, 
+             scales = "free_y") +
+  geom_boxplot() +
+  scale_fill_manual(values = ordered_colors) +
+  scale_color_manual(values = ordered_colors) +
+  theme_classic(base_size = 14) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid.minor = element_blank(),
+    strip.background = element_rect(fill = "white"),
+    strip.text = element_text(size = 10),
+    legend.position = "none"
+  ) +
+  labs(x = "")
+
+ggsave("figures/all_environments_pops.png", h=10, w=10)
+
+# break out for presentation
+p_depth <- ggplot(all, aes(x = factor(Pop, levels = new_order), 
+                           y = depth, 
+                           fill = factor(Pop, levels = new_order), 
+                           color = factor(Pop, levels = new_order))) +
+  geom_boxplot(outlier.shape = NA) +
+  scale_fill_manual(values = ordered_colors) +
+  scale_color_manual(values = ordered_colors) +
+  theme_classic(base_size = 14) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid.minor = element_blank(),
+    strip.background = element_rect(fill = "white"),
+    strip.text = element_text(size = 10),
+    legend.position = "none"
+  ) +
+  labs(x = "") +
+  coord_cartesian(ylim=c(-900,0))+
+  ggtitle("depth")
+
+ggsave(file="figures/popEnv_depth.png", p_depth, h=3, w=5)
+
+
+p_temp <- ggplot(all, aes(x = factor(Pop, levels = new_order), 
+                           y = annual_mean_temp, 
+                           fill = factor(Pop, levels = new_order), 
+                           color = factor(Pop, levels = new_order))) +
+  geom_boxplot(outlier.shape = NA) +
+  scale_fill_manual(values = ordered_colors) +
+  scale_color_manual(values = ordered_colors) +
+  theme_classic(base_size = 14) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid.minor = element_blank(),
+    strip.background = element_rect(fill = "white"),
+    strip.text = element_text(size = 10),
+    legend.position = "none"
+  ) +
+  labs(x = "", y="annual mean temperature") +
+  ggtitle("annual mean temperature")
+
+ggsave(file="figures/popEnv_annualTemp.png", p_temp, h=3, w=5)
+
+
+
+temp_depth <- ggplot(all, aes(x = log10(depth*-1), 
+                y = annual_mean_temp, 
+                fill = factor(Pop, levels = new_order))) +
+  geom_point(shape=21, size=2.5) +
+  scale_fill_manual(values = ordered_colors) +
+  scale_color_manual(values = ordered_colors) +
+  theme_classic(base_size = 14) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid.minor = element_blank(),
+    strip.background = element_rect(fill = "white"),
+    strip.text = element_text(size = 10),
+    legend.position = "none"
+  ) +
+  labs(x = "log10(depth)", y="annual mean temperature") +
+  ggtitle("temperature vs. depth")
+  
+
+ggsave(file="figures/temp_depth.png", temp_depth, h=3.5, w=3.5)
 
 #--------------------------------------------------------------------------------
 # process environmental data

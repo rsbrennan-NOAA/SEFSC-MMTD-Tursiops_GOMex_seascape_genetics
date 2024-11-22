@@ -271,9 +271,81 @@ location <- read.csv("data/GoMx_Tursiops_Snicro_FarFromShore-NoStranding.csv")
 
 coords<-data.frame(lon=location$long, lat=location$lat)
 
-head(coords)
-plot(clim[[1]])
-points(coords, pch=16)
+
+plot(clim[[1]], ylim=c(20,32), xlim=c(-99, -79))
+points(coords, pch=21, col="black", bg="red2", cex=1.3)
+
+
+library(maps)
+library(sf)
+
+# Get states data
+usa <- st_as_sf(maps::map("state", fill=TRUE, plot =FALSE))
+
+# Convert raster to dataframe for ggplot
+clim_df <- as.data.frame(clim, xy = TRUE)
+names(clim_df)[3] <- "value"  # rename the value column
+
+# Create the plot
+p <- ggplot() +
+  # Plot the raster data
+  geom_tile(data = clim_df, aes(x = x, y = y, fill = value)) +
+  geom_sf(data = world, fill = "grey90", color = "grey70") +
+  geom_sf(data = usa, fill = NA, color = "grey70") +
+  # Add the points
+  
+  geom_point(data = coords, aes(x = lon, y = lat),
+             fill="red2",
+             shape= 21, color="black", size = 2.5,
+             alpha=0.5) +
+  # Set the coordinate limits
+  coord_sf(xlim = c(-100, -78), ylim = c(23, 32), expand = FALSE)+
+  # Customize the theme
+  theme_bw() +
+  theme(
+    #panel.background = element_rect(fill = "white"),
+    panel.grid = element_blank(),
+    #axis.text = element_blank(),
+    #axis.ticks = element_blank()
+    legend.position = "top",
+    legend.title=element_blank()) +
+  # Customize the color scale for the raster
+  scale_fill_viridis_c() +
+  # Labels
+  labs(x = "Longitude", y = "Latitude", fill = "SST") +
+  theme(panel.grid = element_blank(),
+        legend.position = "top") +
+  annotation_scale()
+
+ggsave("figures/map_annualSST_pops.pdf", p, h=4, w=5)
+
+p <- ggplot() +
+  # Plot the raster data
+  geom_tile(data = clim_df, aes(x = x, y = y, fill = value)) +
+  geom_sf(data = world, fill = "grey90", color = "grey70") +
+  geom_sf(data = usa, fill = NA, color = "grey70") +
+  # Set the coordinate limits
+  coord_sf(xlim = c(-100, -78), ylim = c(23, 32), expand = FALSE)+
+  # Customize the theme
+  theme_bw() +
+  theme(
+    #panel.background = element_rect(fill = "white"),
+    panel.grid = element_blank(),
+    #axis.text = element_blank(),
+    #axis.ticks = element_blank()
+    legend.position = "top",
+    legend.title=element_blank()) +
+  # Customize the color scale for the raster
+  scale_fill_viridis_c() +
+  # Labels
+  labs(x = "Longitude", y = "Latitude", fill = "SST") +
+  theme(panel.grid = element_blank(),
+        legend.position = "top") +
+  annotation_scale()
+
+ggsave("figures/map_annualSST.pdf", p, h=4, w=5)
+ggsave("figures/map_annualSST.png", p, h=4, w=5)
+
 
 # need to loop over the coords, find the cooresponding temp
 

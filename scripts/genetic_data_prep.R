@@ -1,6 +1,7 @@
 # prep genetic data
 
 library(adegenet)
+library(RColorBrewer)
 # dolphin seascape genetics
 
 # need to find some measure of genetic distance overall between indivs/pops
@@ -131,9 +132,16 @@ cols <- Colorsdf$color[match(dinfo$Pop, Colorsdf$population)]
 library(ggplot2)
 pltdat <- cbind(dinfo$Pop, pca1$li)
 colnames(pltdat) <- c("Pop", "PC1", "PC2")
-ggplot(pltdat, aes(x=PC1, y=PC2, color=Pop))+
-  geom_point(size=3)
-# read in the pop labels.
+pout <-ggplot(pltdat, aes(x=PC1, y=PC2, fill=Pop),
+       color="black")+
+  geom_point(size=3,pch=21) +
+  theme_classic(base_size=14) +
+  scale_fill_manual(values = Colorsdf$color,guide = guide_legend(override.aes = list(alpha = 1, size = 2.5))) +
+  theme(legend.title = element_blank())
+
+ggsave("figures/pca_pops.png", pout, h=4, w=5)
+
+
 
 
 # ------------------------------------------------------------------------------

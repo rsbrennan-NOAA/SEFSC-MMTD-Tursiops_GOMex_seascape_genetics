@@ -7,6 +7,7 @@ library(rnaturalearthdata)
 library(tidyverse)
 library(ggspatial)
 library(marmap)
+library(RColorBrewer)
 
 
 
@@ -25,7 +26,8 @@ usa <- st_as_sf(maps::map("state", fill=TRUE, plot =FALSE))
 p <- ggplot() +
   geom_sf(data = world, fill = "grey90", color = "grey70") +
   geom_sf(data = usa, fill = NA, color = "grey70") +
-  geom_point(data = dat, aes(x = long, y = lat, fill="burntorange"), 
+  geom_point(data = dat, aes(x = long, y = lat),
+             fill="sienna4",
              shape= 21, color="black", size = 2.5,
              alpha=0.5) +
   coord_sf() +
@@ -37,8 +39,8 @@ p <- ggplot() +
     #axis.ticks = element_blank()
     legend.position = "top",
     legend.title=element_blank()) +
-  xlab("latitude")+
-  ylab("longitude") +
+  xlab("Longitude")+
+  ylab("Latitude") +
   coord_sf(xlim = c(-100, -78), ylim = c(23, 32), expand = FALSE)+
   annotation_scale()
   
@@ -46,6 +48,54 @@ p
 
 ggsave("figures/map.pdf", p, h=4, w=5)
 ggsave("figures/map.png", p, h=4, w=5)
+
+
+#---------------
+# add pop colors:
+
+# read in the pop labels.
+
+dat$Pop <- as.factor(dat$Pop)
+
+Colorsdf <-
+  with(dat,
+       data.frame(population = levels(dat$Pop),
+                  color = I(brewer.pal(nlevels(Pop), name = 'Set1'))))
+cols <- Colorsdf$color[match(dat$Pop, Colorsdf$population)]
+dat$colors <- cols
+
+
+# 
+p <- ggplot() +
+  geom_sf(data = world, fill = "grey90", color = "grey70") +
+  geom_sf(data = usa, fill = NA, color = "grey70") +
+  geom_point(data = dat, aes(x = long, y = lat, fill=Pop),
+             shape= 21, color="black", size = 2.5,
+             alpha=0.5) +
+  coord_sf() +
+  theme_bw() +
+  theme(
+    #panel.background = element_rect(fill = "white"),
+    panel.grid = element_blank(),
+    #axis.text = element_blank(),
+    #axis.ticks = element_blank()
+    legend.position = "top",
+    legend.title=element_blank()) +
+  xlab("Longitude") + 
+  ylab("Latitude") +   
+  coord_sf(xlim = c(-100, -78), ylim = c(23, 32), expand = FALSE)+
+  annotation_scale() +
+  scale_fill_manual(values = Colorsdf$color,guide = guide_legend(override.aes = list(alpha = 1, size = 2.5))) 
+
+p
+
+
+ggsave("figures/map_pops.pdf", p, h=4, w=5)
+ggsave("figures/map_pops.png", p, h=4, w=5)
+
+
+write.csv(Colorsdf, file="analysis/popColors.csv", row.names=F)
+
 
 
 #--------------#
@@ -93,10 +143,49 @@ depths
 #    TRUE ~ "#999999"  # Default color if none of the above match
 #  ))
 
-plot(bathydata, n=20, deepest.isobath = min(depths$depth), 
-     shallow=0, step=10)
-points(dat$long, dat$lat, pch = 21, 
-       bg ="orange", col = "black", cex = 2)
+# Create coordinate grids from dimnames
+x <- as.numeric(dimnames(bathydata)[[1]])
+y <- as.numeric(dimnames(bathydata)[[2]])
+coords <- expand.grid(x = x, y = y)
+
+# Convert matrix to vector and combine with coordinates
+bathy_df <- data.frame(
+  coords,
+  depth = as.vector(bathydata)
+)
+
+
+
+
+
+depthp <- ggplot() +
+  # Bathymetry contours
+  geom_sf(data = world, fill = "grey90", color = "grey70") +
+  geom_sf(data = usa, fill = NA, color = "grey70") +
+  geom_contour(data = bathy_df, 
+               aes(x = x, y = y, z = depth),
+               breaks = seq(-500, 0, by = 20),
+               color = "grey70") +
+  #geom_point(data = dat, aes(x = long, y = lat, fill=Pop),
+  #           shape= 21, color="black", size = 2.5,
+  #           alpha=0.5) +
+  theme_bw() +
+  theme(
+    #panel.background = element_rect(fill = "white"),
+    panel.grid = element_blank(),
+    #axis.text = element_blank(),
+    #axis.ticks = element_blank()
+    legend.position = "top",
+    legend.title=element_blank()) +
+  xlab("Longitude") + 
+  ylab("Latitude") +   
+  coord_sf(xlim = c(-100, -78), ylim = c(23, 32), expand = FALSE)+
+  annotation_scale() +
+  scale_fill_manual(values = Colorsdf$color,guide = guide_legend(override.aes = list(alpha = 1, size = 2.5))) 
+
+ggsave("figures/map_depths.pdf", depthp, h=4, w=5)
+ggsave("figures/map_depths.png",depthp, h=4, w=5)
+
 
 
 # calculate the distance to nearest shoreline:
