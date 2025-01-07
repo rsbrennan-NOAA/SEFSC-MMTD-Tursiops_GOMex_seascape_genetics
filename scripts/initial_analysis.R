@@ -13,6 +13,10 @@ library(algatr)
 library(tidyr)
 library(dplyr)
 library(ggplot2)
+library(corrplot)
+library(dplyr)
+
+
 # https://thewanglab.github.io/algatr/articles/MMRR_vignette.html
 # https://thewanglab.github.io/algatr/articles/enviro_data_vignette.html
 # check for collinearity
@@ -31,7 +35,7 @@ dat_phosphate_annual <- read.csv("analysis/environmental_variables/annual_mean_p
 # pairwise distance between samples. 
 dat_lcdist <- read.csv("analysis/environmental_variables/lc_distances_km.csv", row.names=1)
 
-dat_depth_dist$depth_log10 <- log10(dat_depth_dist$depth * -1)
+dat_depth_dist$depth_log10 <- log10(dat_depth_dist$depth * -1)*-1
 dat_depth_dist$distance_to_shore_log10 <- log10(dat_depth_dist$distance_to_shore)
 
 # merge into single df
@@ -48,14 +52,18 @@ dat <- cbind(
   annual_mean_phosphate = dat_phosphate_annual[, 5]
 )
 
-#pops <- read.csv("population_assignments.csv")
-pops <- read.csv("data/GoMx_Tursiops_Snicro_FarFromShore-NoStranding.csv")
+pops <- read.csv("analysis/population_assignments.csv")
+colnames(pops) <- c("Sample", "pop", "pred.post", "geo_pop", "comp", "Pop")
+# pops <- read.csv("data/GoMx_Tursiops_Snicro_FarFromShore-NoStranding.csv")
 
 head(dat)
 
 all <- merge(dat, pops[,c('Sample','Pop')], by.x="id", by.y="Sample")
 
-popColors <- read.csv("analysis/popColors.csv")
+popColors <- data.frame(population= c("East_Oceanic", "East_shelf", "NE_Oceanic", "NW_InnerShelf", "NW_Oceanic", "NW_Outer_shelf"),
+                          color= c("#1B9E77","firebrick3","#7570B3","#E6AB02","#8B4513","black"))
+
+table(all$Pop)
 
 long_data <- all %>%
   select(Pop, 2:10) %>%  # Select columns 5 through 10
@@ -63,7 +71,8 @@ long_data <- all %>%
                names_to = "variable",
                values_to = "value")
 
-new_order <- c("NWInner", "EInner", "EOuter", "ShelfOff", "NEOFF", "DeepOff", "EastOff")
+
+new_order <- c("East_shelf", "NW_InnerShelf", "NW_Outer_shelf", "NW_Oceanic", "NE_Oceanic", "East_Oceanic")
 ordered_colors <- popColors$color[match(new_order, popColors$population)]  
 
 ggplot(long_data, aes(x = factor(Pop, levels = new_order), 
@@ -152,67 +161,6 @@ temp_depth <- ggplot(all, aes(x = log10(depth*-1),
 ggsave(file="figures/temp_depth.png", temp_depth, h=3.5, w=3.5)
 
 
-
-#-----------------------------------------------------------------
-# nj tree. genetic distances
-#-----------------------------------------------------------------
-library(ape)
-library(Matrix)
-library(tidyverse)
-library(RColorBrewer)
-
-gendist <- as.matrix(read.csv("genetic_distances_pairwise_matrix.csv"))
-gendist2 <- as.matrix(Matrix::forceSymmetric(gendist,uplo="L"))
-
-all$newpop <- as.factor(all$Pop)
-
-Colorsdf <-
-  with(all,
-       data.frame(population = levels(all$newpop),
-                  color = I(brewer.pal(nlevels(newpop), name = 'Dark2'))))
-cols <- Colorsdf$color[match(all$newpop, Colorsdf$population)]
-
-nj(gendist2) %>% plot(.,"unrooted", tip.color = cols)
-nj(gendist2) %>% plot(., tip.color = cols)
-
-library(ggtree)
-out_tree <- nj(gendist2)
-out <- as_tibble(nj(gendist2))
-out$label <- gsub("X", "", out$label)
-dm <- left_join(out, all, by=c("label" ="id"))
-
-ggtree(out_tree) + 
-  theme_tree()
-
-#p <- ggtree(out_tree,layout="daylight") + theme_tree()
-p <- ggtree(out_tree, layout="unrooted") + theme_tree()
-p <- ggtree(out_tree, layout="ape") + theme_tree()
-
-
-pout <- p %<+% dm + 
-  #geom_tiplab(aes(color=newpop), size=0.9) +
-  theme(legend.position="right")+ 
-  #geom_text( show.legend  = F ) +
-  geom_tippoint(aes(color=newpop), size=4, alpha=0.7) 
-
-pout
-ggsave(pout, filename="figures/nj_tree_unrooted.png", h=5, w=6)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #--------------------------------------------------------------------------------
 #--------------------------------------------------------------------------------
 #--------------------------------------------------------------------------------
@@ -225,7 +173,6 @@ ggsave(pout, filename="figures/nj_tree_unrooted.png", h=5, w=6)
 # Calculate correlation matrix
 corr_matrix <- cor(dat[2:ncol(dat)], method = "pearson")
 
-library(corrplot)
 corrplot.mixed(corr_matrix,
          upper = "ellipse",  # Ellipses on upper triangle
          lower = "number",   # Numbers on lower triangle
@@ -251,13 +198,26 @@ dev.off()
 
 # drop correlated env. variables
 # phosphate and nitrate 0.82. 
-# salinity and temp (annual) are 0.71, borderline. keep for now.
+# salinity and temp (annual) are 0.71,
+high_corr <- which(abs(corr_matrix) > 0.7 & corr_matrix != 1 & upper.tri(corr_matrix), arr.ind = TRUE)
+data.frame(
+  row = rownames(corr_matrix)[high_corr[,1]],
+  col = colnames(corr_matrix)[high_corr[,2]], 
+  correlation = corr_matrix[high_corr]
+)
 
-# drop phosphate:
-library(dplyr)
-#dat <- dat %>% select(-annual_mean_phosphate)
-#dat <- dat %>% select(-annual_mean_temp)
+#row                     col correlation
+#1                   depth             depth_log10   0.7540154
+#2             depth_log10 distance_to_shore_log10  -0.7645013
+#3             depth_log10       distance_to_shore  -0.7217551
+#4 distance_to_shore_log10       distance_to_shore   0.8774960
+#5             depth_log10        annual_mean_temp  -0.7305640
+#6        annual_mean_temp    annual_mean_salinity   0.7063588
+#7     annual_mean_nitrate   annual_mean_phosphate   0.8160668
 
+# to drop:
+dat <- dat %>%  select(-depth, -distance_to_shore, -distance_to_shore_log10, 
+-annual_mean_temp, -annual_mean_phosphate)
 
 #--------------------------------------------------------------------------
 # calculate environmental distances
@@ -271,10 +231,11 @@ distmat <- list()
 # Create distance matrix for each numeric column
 for(col in numeric_cols) {
   # Create distance matrix
-  #first scale
   #tmp_scaled <- scale(dat[[col]], center = TRUE, scale = TRUE)
   # Create distance matrix
-  dist_tmp <- as.matrix(dist(dat[[col]], diag = TRUE, upper = TRUE, method="euclidean"))
+  #dist_tmp <- as.matrix(dist(tmp_scaled, diag = TRUE, upper = TRUE))
+  dist_tmp <- as.matrix(dist(dat[[col]], diag = TRUE, upper = TRUE))
+  #dist_tmp <- as.matrix(tmp_scaled, diag = TRUE, upper = TRUE, method="euclidean"))
   # Add row and column names
   row.names(dist_tmp) <- dat$id
   colnames(dist_tmp) <- dat$id
@@ -294,6 +255,8 @@ geo_dist_log[is.infinite(geo_dist_log)] <- 0
 
 
 distmat[['geographic_dist']] <- (geo_dist_log)
+#dat$geo_distance <- geo_dist_log
+
 
 # collinearity between geographic and environmental distances:
 
@@ -322,12 +285,14 @@ env_pca <- rda(dat[,2:ncol(dat)], scale=TRUE)
 summary(env_pca)
 
 
+
+
 # Get site scores
 site_scores <- as.data.frame(scores(env_pca, display = "sites"))
 # Get variable loadings (for arrows)
 var_scores <- as.data.frame(scores(env_pca, display = "species"))
 
-site_scores$Pop <- all$Pop  # Assuming Pop is in your original data
+site_scores$Pop <- all$Pop  # Assuming ids line up, which they do.
 
 # Create data frame for arrows
 var_arrows <- data.frame(
@@ -337,7 +302,14 @@ var_arrows <- data.frame(
   y2 = var_scores$PC2,
   labels = rownames(var_scores)
 )
+var_arrows$labels <- c("depth", 
+                       "weekly temp\nmean", 
+                       "weekly temp\nanomaly",
+                       "annual salinity\nmean", 
+                       "annual oxygen\nmean", 
+                       "annual nitrate\nmean")
 
+library(ggrepel)
 
 # Create the plot
 pca_plot <- ggplot() +
@@ -351,10 +323,25 @@ pca_plot <- ggplot() +
                arrow = arrow(length = unit(0.2, "cm")),
                color = "red") +
   # Add labels for arrows
-  geom_text(data = var_arrows,
-            aes(x = x2, y = y2, label = labels),
-            color = "red", 
-            vjust = -0.5) +
+  geom_text_repel(
+    data = var_arrows,
+    aes(x = x2, y = y2, label = labels),
+    color = "black",
+    size = 3.5,
+    direction = "both",
+    box.padding = 1,
+    point.padding = 0.5,
+    min.segment.length = 0.2,
+    max.overlaps = Inf,
+    segment.color = "grey0",
+    segment.linetype=3,
+    force = 7,
+    force_pull = 0.1,
+    nudge_x = ifelse(var_arrows$x2 > -0.5, 0.2, -0.1)+ 
+      ifelse(var_arrows$y2 == min(var_arrows$y2), 0.5, 0),
+    nudge_y = ifelse(var_arrows$y2 > 1, 0.3, -0.9) + 
+      ifelse(var_arrows$y2 == min(var_arrows$y2), 1, 0)
+  ) +
   scale_fill_manual(values = ordered_colors) +
   theme_classic(base_size = 14) +
   theme(
@@ -370,13 +357,26 @@ pca_plot
 ggsave(pca_plot, file="figures/pca_environment.pdf", h=5, w=6.5)
 ggsave(pca_plot, file="figures/pca_environment.png", h=5, w=6.5)
 
+# what are the individuals on the bottom left of the plot?
+
+dat[which(site_scores$PC1 < -1),]
+
+dat[255:262,]
+dat_depth_dist[255:262,]
+
+# those are shallow ones.
+hist(dat_depth_dist$depth, breaks=500)
+
+dat_depth_dist[dat_depth_dist$depth< -2000,]
+
+# these deep ones are real and legit
 
 #-----------------------------------------------------------------
 # prep genetic distances for gea
 #-----------------------------------------------------------------
 
-
 # genetic distances matrix needs to be symmetrical
+gendist <- as.matrix(read.csv("genetic_distances_pairwise_matrix.csv"))
 gendist2 <- as.matrix(Matrix::forceSymmetric(gendist,uplo="L"))
 
 #-----------------------------------------------------------------
@@ -386,7 +386,7 @@ gendist2 <- as.matrix(Matrix::forceSymmetric(gendist,uplo="L"))
 # disentangling the contribution of geographic and environment
 
 # significance found via randomization permutaions
-# get ndividual regression coefficients and p-values for each dependent variable and a 
+# get individual regression coefficients and p-values for each dependent variable and a 
   # “coefficient ratio,” which is the ratio between regression coefficients, 
    # which thus provides an idea of the relative contributions of IBD and IBE in explaining variation in the genetic distances in your data.
 
@@ -395,16 +395,85 @@ gendist2 <- as.matrix(Matrix::forceSymmetric(gendist,uplo="L"))
     # (2) this function assumes that each individual has its own sampling coordinates (even if population-based sampling was performed).
 
 set.seed(01)
-results_full <- mmrr_run(gendist2, distmat, nperm = 99, stdz = TRUE, model = "full")
-# I already scaled the distance matrix manually
+results_full <- mmrr_run(gendist2, distmat, nperm = 500, stdz = TRUE, model = "full")
+# either need to stdz here or the environmental data directly. I currently have done it above.
 # The results from running the “full” MMRR model contains four elements:
   # 1. coeff_df: a dataframe with statistics relating to each variable’s distance related to genetic distance, including coefficient values for each environmental variable and geographic distance
   # 2 mod: a dataframe containing statistics for the results of the model, including an R^2 value, and F statistics
   # 3/4: X and Y: the input data
 
 
-#results_full
+Y <- gendist2
+X<-  distmat
+nperm = 4
+# figure out the actual MMRR manually
+# Compute regression coefficients and test statistics
+nrowsY <- nrow(Y)
+y <- unfold(Y, FALSE)
+if (is.null(names(X))) names(X) <- paste("X", 1:length(X), sep = "")
+Xmats <- sapply(X, unfold, scale = TRUE)
+fit <- stats::lm(y ~ Xmats)
+coeffs <- fit$coefficients
+summ <- summary(fit)
+r.squared <- summ$r.squared
+tstat <- summ$coefficients[, "t value"]
+Fstat <- summ$fstatistic[1]
+tprob <- rep(1, length(tstat))
+Fprob <- 1
 
+# Perform permutations
+for (i in 1:nperm) {
+  rand <- sample(1:nrowsY)
+  Yperm <- Y[rand, rand]
+  yperm <- unfold(Yperm, scale)
+  fit <- stats::lm(yperm ~ Xmats)
+  summ <- summary(fit)
+  Fprob <- Fprob + as.numeric(summ$fstatistic[1] >= Fstat)
+  tprob <- tprob + as.numeric(abs(summ$coefficients[, "t value"]) >= abs(tstat))
+}
+
+
+# Get confidence interval
+conf_df <- stats::confint(fit, names(fit$coefficients), level = 0.90)
+rownames(conf_df) <- c("Intercept", names(X))
+
+
+# Perform permutations
+for (i in 1:nperm) {
+  rand <- sample(1:nrowsY)
+  Yperm <- Y[rand, rand]
+  yperm <- unfold(Yperm, FALSE)
+  fit <- stats::lm(yperm ~ Xmats)
+  summ <- summary(fit)
+  Fprob <- Fprob + as.numeric(summ$fstatistic[1] >= Fstat)
+  tprob <- tprob + as.numeric(abs(summ$coefficients[, "t value"]) >= abs(tstat))
+}
+
+# Return values
+tp <- tprob / (nperm + 1)
+Fp <- Fprob / (nperm + 1)
+names(r.squared) <- "r.squared"
+names(coeffs) <- c("Intercept", names(X))
+names(tstat) <- paste(c("Intercept", names(X)), "(t)", sep = "")
+names(tp) <- paste(c("Intercept", names(X)), "(p)", sep = "")
+names(Fstat) <- "F-statistic"
+names(Fp) <- "F p-value"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#results_full
 table_full <- mmrr_table(results_full, digits = 2, summary_stats = TRUE)
 
 gt::gtsave(table_full, filename = "figures/mmrr_full_results_table.png")   # Save as PNG
@@ -419,22 +488,33 @@ fitted_full <- mmrr_plot(gendist2, distmat, mod = results_full$mod, plot_type = 
 ggsave(filename="figures/mmrr_fitted_full.png", h=7, w=7)
 
 # covariance plot
-covariance_full <- mmrr_plot(gendist2, distmat, mod = results_full$mod, plot_type = "cov", stdz = TRUE)
+covariance_full <- mmrr_plot(y=gendist2, x= distmat, mod = results_full$mod, plot_type = "cov", stdz = TRUE)
 ggsave(filename="figures/mmrr_covariance_full.png", h=7, w=7)
+
 
 
 #### best model only #######
 # Run MMRR with all variables and select best model
 set.seed(01)
-results_best <- mmrr_run(gendist2, distmat, nperm = 99, stdz = FALSE, model = "best")
-
+results_best <- mmrr_run(gendist2, distmat, nperm = 200, stdz = TRUE, model = "best")
+results_best$coeff_df
 table_best <- mmrr_table(results_best, digits = 2, summary_stats = TRUE)
 gt::gtsave(table_best, filename = "figures/mmrr_best_results_table.png")   # Save as PNG
 
 
+variables_best <- mmrr_plot(gendist2, distmat, mod = results_best$mod, plot_type = "vars", stdz = TRUE)
+variables_best
+fitted_best <- mmrr_plot(gendist2, distmat, mod = results_best$mod, plot_type = "fitted", stdz = TRUE)
+
+# to do:
+## run model with and without geographic distance. can get idea of the contribution of each
+## 
 
 
-mmrr_plot(gendist2, distmat, mod = results_best$mod, plot_type = "all", stdz = TRUE)
+
+
+
+
 
 
 #---------------------------------------------------------------------------------
