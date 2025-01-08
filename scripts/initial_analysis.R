@@ -395,7 +395,7 @@ gendist2 <- as.matrix(Matrix::forceSymmetric(gendist,uplo="L"))
     # (2) this function assumes that each individual has its own sampling coordinates (even if population-based sampling was performed).
 
 set.seed(01)
-results_full <- mmrr_run(gendist2, distmat, nperm = 500, stdz = TRUE, model = "full")
+results_full <- mmrr_run(gendist2, distmat, nperm = 50, stdz = TRUE, model = "full")
 # either need to stdz here or the environmental data directly. I currently have done it above.
 # The results from running the “full” MMRR model contains four elements:
   # 1. coeff_df: a dataframe with statistics relating to each variable’s distance related to genetic distance, including coefficient values for each environmental variable and geographic distance
@@ -403,81 +403,12 @@ results_full <- mmrr_run(gendist2, distmat, nperm = 500, stdz = TRUE, model = "f
   # 3/4: X and Y: the input data
 
 
-Y <- gendist2
-X<-  distmat
-nperm = 4
-# figure out the actual MMRR manually
-# Compute regression coefficients and test statistics
-nrowsY <- nrow(Y)
-y <- unfold(Y, FALSE)
-if (is.null(names(X))) names(X) <- paste("X", 1:length(X), sep = "")
-Xmats <- sapply(X, unfold, scale = TRUE)
-fit <- stats::lm(y ~ Xmats)
-coeffs <- fit$coefficients
-summ <- summary(fit)
-r.squared <- summ$r.squared
-tstat <- summ$coefficients[, "t value"]
-Fstat <- summ$fstatistic[1]
-tprob <- rep(1, length(tstat))
-Fprob <- 1
-
-# Perform permutations
-for (i in 1:nperm) {
-  rand <- sample(1:nrowsY)
-  Yperm <- Y[rand, rand]
-  yperm <- unfold(Yperm, scale)
-  fit <- stats::lm(yperm ~ Xmats)
-  summ <- summary(fit)
-  Fprob <- Fprob + as.numeric(summ$fstatistic[1] >= Fstat)
-  tprob <- tprob + as.numeric(abs(summ$coefficients[, "t value"]) >= abs(tstat))
-}
-
-
-# Get confidence interval
-conf_df <- stats::confint(fit, names(fit$coefficients), level = 0.90)
-rownames(conf_df) <- c("Intercept", names(X))
-
-
-# Perform permutations
-for (i in 1:nperm) {
-  rand <- sample(1:nrowsY)
-  Yperm <- Y[rand, rand]
-  yperm <- unfold(Yperm, FALSE)
-  fit <- stats::lm(yperm ~ Xmats)
-  summ <- summary(fit)
-  Fprob <- Fprob + as.numeric(summ$fstatistic[1] >= Fstat)
-  tprob <- tprob + as.numeric(abs(summ$coefficients[, "t value"]) >= abs(tstat))
-}
-
-# Return values
-tp <- tprob / (nperm + 1)
-Fp <- Fprob / (nperm + 1)
-names(r.squared) <- "r.squared"
-names(coeffs) <- c("Intercept", names(X))
-names(tstat) <- paste(c("Intercept", names(X)), "(t)", sep = "")
-names(tp) <- paste(c("Intercept", names(X)), "(p)", sep = "")
-names(Fstat) <- "F-statistic"
-names(Fp) <- "F p-value"
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #results_full
 table_full <- mmrr_table(results_full, digits = 2, summary_stats = TRUE)
-
+table_full
 gt::gtsave(table_full, filename = "figures/mmrr_full_results_table.png")   # Save as PNG
 
+results_full$coeff_df
 
 # Single variable plot
 variables_full <- mmrr_plot(gendist2, distmat, mod = results_full$mod, plot_type = "vars", stdz = TRUE)
@@ -507,9 +438,31 @@ variables_best
 fitted_best <- mmrr_plot(gendist2, distmat, mod = results_best$mod, plot_type = "fitted", stdz = TRUE)
 
 # to do:
-## run model with and without geographic distance. can get idea of the contribution of each
-## 
+## - run model with and without geographic distance. can get idea of the contribution of each
+## - if I don't log transform depth, I get much smaller R-squared for total model. \
+    # I should add this code here for reference.
 
+# raw depth
+
+#r.squared 
+# 0.2156684 
+#$Fstatistic
+#F-statistic 
+#5695.158 
+
+#$Fpvalue
+#F p-value 
+#0.01960784 
+#> results_full$coeff_df
+#var      estimate          p    95% Lower    95% Upper
+#1  annual_mean_nitrate  2.496616e-02 0.05882353  0.021057914  0.028874401
+#2   annual_mean_oxygen -5.246332e-02 0.01960784 -0.056755624 -0.048171016
+#3 annual_mean_salinity  8.080715e-02 0.01960784  0.076826970  0.084787333
+#4                depth  4.123321e-01 0.01960784  0.408491533  0.416172687
+#5      geographic_dist  1.692380e-01 0.01960784  0.164948287  0.173527806
+#6            Intercept  3.635374e-15 0.01960784 -0.003825779  0.003825779
+#7     weekly_anom_temp -2.796878e-02 0.01960784 -0.032012674 -0.023924896
+#8     weekly_mean_temp  1.348411e-02 0.37254902  0.009446158  0.017522068
 
 
 
@@ -521,6 +474,8 @@ fitted_best <- mmrr_plot(gendist2, distmat, mod = results_best$mod, plot_type = 
 ### can I predict anything?
 #---------------------------------------------------------------------------------
 
+!!!!!!!! still to update!!!!!!!!!!!!!!!!
+  
 unfold <- function(X, scale = TRUE) {
   x <- vector()
   for (i in 2:nrow(X)) x <- c(x, X[i, 1:i - 1])
@@ -701,6 +656,22 @@ region_plot
 
 ggsave(file="figures/accuracy_region_depth.png",region_plot, h=4, w=5)
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #--------------------------------------------------------------------------------
 #--------------------------------------------------------------------------------
 #--------------------------------------------------------------------------------
@@ -729,10 +700,18 @@ gdm_full <- gdm_run(
   coords = coords,
   env = envs,
   model = "full",
-  scale_gendist = TRUE
+  scale_gendist = TRUE # bc distances need to be between 0 and 1 for gdm
 )
 
 summary(gdm_full$model)
+# see this paper: https://onlinelibrary.wiley.com/doi/10.1111/geb.13459
+#  the percent deviance (or variation) in the observed dissimilarities that is explained by the model
+# The model intercept is also informative, indicating the mean dissimilarity between site-pairs 
+   # when they have identical predictor values (i.e., environmental distance between sites equals zero). 
+   # Higher values of an intercept infer relatively large dissimilarities, 
+   # even where predictor variables for two sites are identical, which may be a real phenomenon derived through stochastic ecological processes, or may be an artefact of incomplete sampling and/or missing environmental predictor variables. 
+   # Predictors with the greatest influence on predicted dissimilarity have the greatest summed coefficient values.
+
 
 gdm_plot_diss(gdm_full$model)
 # Plot the I-splines with free x and y-axes
@@ -749,17 +728,54 @@ gdmData <- gdm_format(gendist, coords, envs, scale_gendist = TRUE)
 
 # Then you can run gdm.varImp(), 
 # specifying whether you want to use geographic distance as a variable as well 
+# compares the deviance explained from the fitted model to that derived when either 
+   # an individual predictor variable, or all predictor variables, are randomly permuted 
+   # between sites. 
+   # The resulting p-value is the proportion of models where the randomized predictor 
+   # data perform better in explaining deviance than the actual predictor data. 
+   # Using a specified threshold maximum p-value (typically .05) can indicate which 
+   # variables are not significant in the model, helping inform model refinement and simplification
 varimp <- gdm::gdm.varImp(gdmData,
+                          predSelect = TRUE ,
+                          geo = TRUE, nPerm = 50,parallel=TRUE, cores = 14)
+
+Fitting initial model with all 7 predictors...
+Sum of I-spline coefficients for predictor Geographic = 0
+Sum of I-spline coefficients for predictor weekly_anom_temp = 0
+Setting Geo=FALSE and proceeding with permutation testing...
+Removing weekly_anom_temp and proceeding with permutation testing...
+Creating 50 permuted site-pair tables...
+Starting model assessment...
+Percent deviance explained by the full model =  61.405
+Fitting GDMs to the permuted site-pair tables...
+Removing weekly_mean_temp and proceeding with the next round of permutations.
+Percent deviance explained by the full model =  61.386
+Fitting GDMs to the permuted site-pair tables...
+Removing annual_mean_oxygen and proceeding with the next round of permutations.
+Percent deviance explained by the full model =  61.351
+Fitting GDMs to the permuted site-pair tables...
+All remaining predictors are significant, ceasing assessment.
+Percent deviance explained by final model = 61.351
+Final set of predictors returned: 
+  depth_log10
+annual_mean_salinity
+annual_mean_nitrate
+
+
+varimp_nopred <- gdm::gdm.varImp(gdmData,
                           predSelect = FALSE ,
-                          geo = TRUE, nPerm = 50,parallel=TRUE, cores = 9)
-
+                          geo = TRUE, nPerm = 50,parallel=TRUE, cores = 14)
 # visualize the results 
-gdm_varimp_table(varimp)
+gdm_varimp_table(varimp_nopred)
 
-# depth by far the most important. then annual mean temp, 
-    # then annual mean nitrate, then dist to shore. then annual mean oxygen
 
-# I think some of these are confounded, so depth and distance to shore and temp maybe?
+
+
+
+
+
+
+
 
 # make a map, but I need a raster to do this. doesn't work currenty. 
 map <- gdm_map(gdm_full$model, envs, coords)

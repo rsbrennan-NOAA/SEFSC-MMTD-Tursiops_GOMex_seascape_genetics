@@ -11,25 +11,8 @@ as.date(dat$collection.dat)
 years <- format(as.Date(dat$collection.dat, format="%m/%d/%Y"),"%Y")
 
 uniq_years <- unique(years)
-uniq_years[order(uniq_years)]
 
-#------------------------------------------------------------------------------
-# calc weekly sst around collection date:
 
-# "1994" "1996" "1997" "1999" "2000" "2001" "2002" "2003" "2004" "2006" "2007" "2008"
-
-wget https://downloads.psl.noaa.gov/Datasets/noaa.oisst.v2.highres/icec.day.mean.1994.nc
-wget https://downloads.psl.noaa.gov/Datasets/noaa.oisst.v2.highres/icec.day.mean.1996.nc
-wget https://downloads.psl.noaa.gov/Datasets/noaa.oisst.v2.highres/icec.day.mean.1997.nc
-wget https://downloads.psl.noaa.gov/Datasets/noaa.oisst.v2.highres/icec.day.mean.1999.nc
-wget https://downloads.psl.noaa.gov/Datasets/noaa.oisst.v2.highres/icec.day.mean.2000.nc
-wget https://downloads.psl.noaa.gov/Datasets/noaa.oisst.v2.highres/icec.day.mean.2001.nc
-wget https://downloads.psl.noaa.gov/Datasets/noaa.oisst.v2.highres/icec.day.mean.2002.nc
-wget https://downloads.psl.noaa.gov/Datasets/noaa.oisst.v2.highres/icec.day.mean.2003.nc
-wget https://downloads.psl.noaa.gov/Datasets/noaa.oisst.v2.highres/icec.day.mean.2004.nc
-wget https://downloads.psl.noaa.gov/Datasets/noaa.oisst.v2.highres/icec.day.mean.2006.nc
-wget https://downloads.psl.noaa.gov/Datasets/noaa.oisst.v2.highres/icec.day.mean.2007.nc
-wget https://downloads.psl.noaa.gov/Datasets/noaa.oisst.v2.highres/icec.day.mean.2008.nc
 
 
 # read in data, get overlaps:
@@ -124,7 +107,7 @@ for(i in 1:length(missing_index)){
   missingdat$lat_new[i] <- close_coords$y
 }
 
-# plot each, to make sure there are no mistakes
+# plot and look at them, to make sure there are no mistakes
 climplt <- clim[[1]]
 plot(climplt, xlim=c(277,278), ylim=c(26.5,27.5))
 points(missingdat, pch=19, lwd=1)
@@ -223,33 +206,6 @@ dat_temp <- read.csv("analysis/environmental_variables/weekly_mean_temp.csv")
 #-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------
 
-
-# sst- annual mean from 1995_2004 1/10 degree grids
-#mkdir annual_mean_sst_1995_2004
-#cd annual_mean_sst_1995_2004
-#wget https://www.ncei.noaa.gov/thredds-ocean/fileServer/regional-climatologies/gulf-of-mexico/DATA/temperature/netcdf/95A4/0.10/gom_95A4_t00_10.nc
-#cd ..
-# salinity - annual mean from 1995_2004 1/10 degree grids
-#mkdir annual_mean_salinity_1995_2004
-#cd annual_mean_salinity_1995_2004
-#wget https://www.ncei.noaa.gov/thredds-ocean/fileServer/regional-climatologies/gulf-of-mexico/DATA/salinity/netcdf/95A4/0.10/gom_95A4_s00_10.nc#cd ..
-# nitrate 1 degree grids  1955–2017
-#mkdir annual_mean_nitrate
-#cd annual_mean_nitrate
-#wget https://www.ncei.noaa.gov/thredds-ocean/fileServer/regional-climatologies/gulf-of-mexico/DATA/nitrate/netcdf/all/1.00/gom_all_n00_01.nc
-#cd ..
-# oxygen sat 1 degree grids  1955–2017
-#mkdir annual_mean_oxygen
-#cd annual_mean_oxygen
-# wget https://www.ncei.noaa.gov/thredds-ocean/fileServer/regional-climatologies/gulf-of-mexico/DATA/oxygen/netcdf/all/1.00/gom_all_o00_01.nc
-#cd ..
-# silicate - Statistical mean on 1° grid  1955–2017
-#wget https://www.ncei.noaa.gov/thredds-ocean/fileServer/regional-climatologies/gulf-of-mexico/DATA/silicate/netcdf/all/1.00/gom_all_i00_01.nc
-# phosphate - Statistical mean on 1° grid for  1955–2017
-#mkdir annual_mean_phosphate
-#cd annual_mean_phosphate
-#wget https://www.ncei.noaa.gov/thredds-ocean/fileServer/regional-climatologies/gulf-of-mexico/DATA/phosphate/netcdf/all/1.00/gom_all_p00_01.nc
-#cd ..
 
 # ------------------------------
 # temperature
