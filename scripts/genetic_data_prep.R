@@ -52,15 +52,12 @@ genin <- df2genind(df, sep="/")
 
 pca1 <- dudi.pca(genin,scannf=FALSE,scale=FALSE)
 ## basic plot
-plot(pca1$li, pch=21, bg="grey45", color="black",  cex=1)
+plot(pca1$li, pch=21, bg="grey45", col="black",  cex=1)
 
 
 # how much variation is explained?
 barplot((100*(pca1$eig/sum(pca1$eig))[1:20]))
 
-distgenEUCL <- adegenet::dist(genin, method = "euclidean", 
-                    diag = FALSE, upper = FALSE, p = 2)
-hist(distgenEUCL)
 
 # snps
 df <- read.csv("data/GoMx_Tursiops_Snicro_FarFromShore_SNPs-adegenet.csv",
@@ -119,7 +116,7 @@ head(pca1$li)
 
 # how much variation is explained?
 barplot((100*(pca1$eig/sum(pca1$eig))[1:20]))
-
+(100*(pca1$eig/sum(pca1$eig))[1:20])
 dinfo$Pop <- as.factor(dinfo$Pop)
 
 Colorsdf <-
@@ -136,9 +133,9 @@ pout <-ggplot(pltdat, aes(x=PC1, y=PC2, fill=Pop),
   theme_classic(base_size=14) +
   scale_fill_manual(values = Colorsdf$color,guide = guide_legend(override.aes = list(alpha = 1, size = 2.5))) +
   theme(legend.title = element_blank())
-
-ggsave("figures/pca_pops.png", pout, h=4, w=5)
-ggsave("figures/pca_pops.pdf", pout, h=4, w=5)
+pout
+#ggsave("figures/pca_pops.png", pout, h=4, w=5)
+#ggsave("figures/pca_pops.pdf", pout, h=4, w=5)
 
 
 
@@ -176,16 +173,13 @@ dfall <- cbind(out, df2)
 genin <- df2genind(dfall, sep="/")
 
 #grp <- find.clusters(genin, max.n.clust=40, n.pca=7)
-grp <- find.clusters(genin, max.n.clust=40, n.pca=200)
+grp <- find.clusters(genin, max.n.clust=40, n.pca=200,n.clust=6)
 # keep 6
 dapc1 <- dapc(genin, grp$grp, n.pca=100, n.da=50)
 
-
-#table(pop(x), grp$grp)
-
-xval <- xvalDapc(genin, grp=grp$grp, n.pca.max = 100, training.set = 0.9,
-                 result = "groupMean", center = TRUE, scale = FALSE,
-                 n.pca = NULL, n.rep = 30, xval.plot = TRUE)
+#xval <- xvalDapc(genin, grp=grp$grp, n.pca.max = 100, training.set = 0.9,
+#                 result = "groupMean", center = TRUE, scale = FALSE,
+#                 n.pca = NULL, n.rep = 30, xval.plot = TRUE)
 
 dapc2 <- dapc(genin,grp$grp, n.da=50, n.pca=100)
 
@@ -196,42 +190,10 @@ tmp <- optim.a.score(dapc2)
 dapc3 <- dapc(genin,grp$grp, n.da=5, n.pca=13)
 myCol <- rainbow(15)
 
-par(mar=c(5.1,4.1,1.1,1.1), xpd=TRUE)
-compoplot(dapc3, lab="", posi=list(x=12,y=-.01), cleg=.7)
-
-
-round(head(dapc3$posterior),3)
-summary(dapc3 )
-
-plot(dapc3$posterior, dapc1$posterior)
-assignplot(dapc3, subset=1:50)
-
-compoplot(dapc3, posi="bottomright",
-          txt.leg=paste("Cluster", 1:6), lab="",
-          ncol=1, xlab="individuals", col=funky(6))
-
-popgroup <- as.data.frame(matrix(ncol=2, nrow=nrow(dapc3$posterior)))
-colnames(popgroup) <- c("indiv", "pop")
-popgroup$indiv <- row.names(dapc3$posterior)
-popgroup$pop[dapc3$posterior[,1]> 0.6] <- "pop_1"
-popgroup$pop[dapc3$posterior[,2]> 0.6] <- "pop_2"
-popgroup$pop[dapc3$posterior[,3]> 0.6] <- "pop_3"
-popgroup$pop[dapc3$posterior[,4]> 0.6] <- "pop_4"
-popgroup$pop[dapc3$posterior[,5]> 0.6] <- "pop_5"
-popgroup$pop[dapc3$posterior[,6]> 0.6] <- "pop_6"
-
-popgroup$pred.post <- paste0("pop_",apply(dapc3$posterior, 1, which.max))
-
-# figure out if these group assignments correspond to the "pops" in the data:
-
-popgroup$geo_pop <-dinfo$Pop
-head(popgroup)
-popgroup$comp <- paste(popgroup$pred.post, popgroup$geo_pop, sep=":")
-table(popgroup$comp)
 
 #sum(is.na(popgroup$pop))
 
-colors <- c("#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00", "black")
+colors <- c("#1B9E77","firebrick3","#7570B3","#E6AB02","#8B4513","black")
 scatter(dapc3,
         scree.da=TRUE,  # Shows scree plot of eigenvalues
         bg="white",
@@ -240,42 +202,58 @@ scatter(dapc3,
         #legend=TRUE,   
         solid=0.9)      
 
+# save output:
+
+dapc_out <- as.data.frame(dapc3$ind.coord )
+dapc_out$population <- dapc3$grp
+dapc_out$indiv <- rownames(dapc3$ind.coord)
+dapc_out$population_name <- NA
+dapc_out$population_name[dapc_out$population == "1"] <- "Western Coastal"
+dapc_out$population_name[dapc_out$population == "2"] <- "Eastern Coastal" 
+dapc_out$population_name[dapc_out$population == "3"] <- "Western Oceanic"
+dapc_out$population_name[dapc_out$population == "4"] <- "Eastern Oceanic"
+dapc_out$population_name[dapc_out$population == "5"] <- "Northeastern Oceanic"
+dapc_out$population_name[dapc_out$population == "6"] <- "Shelf"
+
+head(dapc_out)
+plot(x=dapc_out$LD1, y=dapc_out$LD2, col=dapc_out$population)
+
 # color PCA by new pops:
+# figure out if these group assignments correspond to the "pops" in the data:
 
-table(popgroup$pop)
-sum(is.na(popgroup$pop))
 
-popgroup$newpop <- NA
-popgroup$newpop[popgroup$pred.post == "pop_1"] <- "NW_InnerShelf"
-popgroup$newpop[popgroup$pred.post == "pop_2"] <- "NW_Outer_shelf"
-popgroup$newpop[popgroup$pred.post == "pop_3"] <- "East_Oceanic"
-popgroup$newpop[popgroup$pred.post == "pop_4"] <- "NW_Oceanic"
-popgroup$newpop[popgroup$pred.post == "pop_5"] <- "NE_Oceanic"
-popgroup$newpop[popgroup$pred.post == "pop_6"] <- "East_shelf"
+dinfo_sub <- dinfo[,c('Sample','Pop')]
+colnames(dinfo_sub) <- c("indiv", "geo_pop")
+popgroup <- left_join(dapc_out, dinfo_sub, by="indiv")
 
-table(popgroup$newpop)
+popgroup$comp <- paste(popgroup$population_name , popgroup$geo_pop, sep=":")
+table(popgroup$comp)
 
-pltdat <- cbind(popgroup$comp, popgroup$newpop, popgroup$geo_pop, pca1$li)
-colnames(pltdat) <- c("Pop_comparison","DAPC_pop", "geo_pop", "PC1", "PC2")
+# merge with the pc
+pca1$li$indiv <- row.names(pca1$li)
+
+pltdat <- full_join(popgroup, pca1$li, by= "indiv")
+colnames(pltdat) <- c(colnames(pltdat)[1:5], "DAPC_population", "indiv", "population_name", "geo_pop",
+                      "Pop_comparison", "PC1", "PC2")
+        
 
 p1 <- ggplot(pltdat, aes(x=PC1, y=PC2, color=geo_pop))+
   geom_point(size=3) +
-  ggtitle("geo_populations")
+  ggtitle("geo_populations") 
 
 p1
 
-#pltdat <- cbind(popgroup$pop, pca1$li)
-#colnames(pltdat) <- c("Pop", "PC1", "PC2")
 
-p2 <- ggplot(pltdat, aes(x=PC1, y=PC2, color=DAPC_pop))+
+p2 <- ggplot(pltdat, aes(x=PC1, y=PC2, color=population_name))+
   geom_point(size=3) +
   ggtitle("dapc_populations")
+p2
+
+ggpubr::ggarrange(p1, p2)
 
 ggsave(ggpubr::ggarrange(p1, p2), filename="figures/pca_comp.png", h=5, w=9)
 
-
-
-write.csv(popgroup, file="analysis/population_assignments.csv", row.names=F)
+write.csv(pltdat, file="analysis/population_assignments.csv", row.names=F)
 
 
 
